@@ -12,10 +12,5 @@ jobs:
       - uses: actions/checkout@v7
       - name: ShellCheck
         run: shellcheck bootstrap.sh
-      - name: Validate config.toml against the schema of the pinned mise release
-        run: |
-          version=$(sed -n 's/^ *MISE_VERSION=\(v[0-9.]*\).*/\1/p' bootstrap.sh)
-          test -n "$version"
-          pipx run check-jsonschema==0.39.0 \
-            --schemafile "https://raw.githubusercontent.com/jdx/mise/$version/schema/mise.json" \
-            config.toml
+      - name: Validate config.toml against the latest mise schema
+        run: pipx run check-jsonschema --schemafile https://mise.jdx.dev/schema/mise.json config.toml

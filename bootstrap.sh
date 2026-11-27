@@ -25,8 +25,7 @@ bootstrap() {
 
   REPO=seven7thirty3five5/ubuntu-bootstrap
   MACHINE=kurtis-ubuntu-vps
-  TAG=tag:hub              # defined in tailnet/policy.hujson
-  MISE_VERSION=v2026.11.14 # the mise release config.toml is built and tested against
+  TAG=tag:hub # defined in tailnet/policy.hujson
   MISE=/home/dev/.local/bin/mise
   GH_SHIM=/home/dev/.local/share/mise/shims/gh
   STEPS=9 # the number of steps run at the end of this function
@@ -293,11 +292,11 @@ bootstrap() {
     if [ -x "$MISE" ]; then
       already "mise is installed for dev"
     else
-      doing "Installing mise $MISE_VERSION for dev"
-      # No activation hint: config.toml sets up activation.
-      indented as_dev sh -c "curl -fsSL https://mise.run | MISE_VERSION=$MISE_VERSION MISE_INSTALL_HELP=0 sh"
+      doing "Installing the latest mise for dev"
+      # No activation hint: the fish config activates mise.
+      indented as_dev sh -c "curl -fsSL https://mise.run | MISE_INSTALL_HELP=0 sh"
       [ -x "$MISE" ] || die "The mise installer failed."
-      ok "Installed mise $MISE_VERSION in /home/dev/.local/bin"
+      ok "Installed mise in /home/dev/.local/bin"
     fi
   }
 
