@@ -4,7 +4,7 @@
 # Comes first because mise's standalone installer (mise.run) puts mise in ~/.local/bin.
 fish_add_path -g ~/.local/bin
 
-set -gx EDITOR vim
+set -gx EDITOR fresh
 set -gx VISUAL $EDITOR
 
 # Keep last: PATH entries added after activation would outrank mise's tools.

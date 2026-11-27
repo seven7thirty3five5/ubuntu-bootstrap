@@ -13,12 +13,38 @@ dotfiles.root = "{{ mise_config_dir }}/dotfiles"
 
 [tools]
 node = "lts"
-gh = "latest"
-# The shell tools that the fish config (dotfiles/.config/fish) sets up.
+gh = "latest" # bootstrap.sh signs it in; a hook below adds gh-dash and gh-stack
+# The fish config (dotfiles/.config/fish) sets up the first four.
 starship = "latest"
 fzf = "latest" # `fzf --fish` needs 0.48 or newer
-zoxide = "latest"
 atuin = "latest"
+zoxide = "latest"
+bat = "latest"
+btop = "latest"
+duf = "latest"
+dust = "latest"
+eza = "latest"
+fd = "latest"
+jq = "latest"
+lazydocker = "latest"
+lazygit = "latest"
+ripgrep = "latest"
+yazi = "latest"
+yq = "latest"
+# The editor, EDITOR in the fish config. Not in mise's registry, so it comes
+# straight from the project's GitHub releases.
+"github:sinelaw/fresh" = "latest"
+# Coding agents. bootstrap.sh signs them in.
+claude = "latest"          # Claude Code
+codex = "latest"           # OpenAI Codex CLI
+antigravity-cli = "latest" # agy
+pi = "latest"              # Pi
+
+# mise updates the coding agents with the rest of the tools
+# (`mise bootstrap --upgrade`), so their own updaters stay off.
+[env]
+DISABLE_AUTOUPDATER = "1"            # Claude Code
+AGY_CLI_DISABLE_AUTO_UPDATE = "true" # Antigravity CLI
 
 # Packages --------------------------------------------------------------------
 
@@ -43,8 +69,7 @@ fingerprint = "88421E703EDC7AF54967DED473C9FCC9E2BB48DA"
 "apt:unzip" = "latest"
 "apt:unattended-upgrades" = "latest" # Ubuntu's default security updates
 "apt:ufw" = "latest"                 # the firewall backend below
-"apt:fish" = "latest"                # from the fish PPA above
-"apt:vim" = "latest"                 # EDITOR in the fish config
+"apt:fish" = "latest"                # from the fish PPA above; dev's login shell
 # Remote desktop. Xfce, because GNOME 50 has no Xorg session and xrdp needs one.
 "apt:xfce4" = "latest"
 "apt:xfce4-terminal" = "latest"
@@ -78,11 +103,18 @@ fingerprint = "88421E703EDC7AF54967DED473C9FCC9E2BB48DA"
 "apt:xvfb" = "latest"
 
 [bootstrap.hooks.post-packages]
-# The xrdp package doesn't add its user to ssl-cert, the group that can read the
-# key behind /etc/xrdp/key.pem. [bootstrap.users] can't do it: mise applies
-# accounts before packages, when the xrdp user doesn't exist yet.
-description = "Add the xrdp user to the ssl-cert group"
-run = "id -nG xrdp | grep -qw ssl-cert || sudo usermod -aG ssl-cert xrdp"
+# Two account changes that need packages installed first, so [bootstrap.users]
+# can't make them: mise applies accounts before packages.
+# - The xrdp package doesn't add its user to ssl-cert, the group that can read
+#   the key behind /etc/xrdp/key.pem.
+# - fish becomes dev's login shell only once it is installed and listed in
+#   /etc/shells, so a failed first run never leaves dev, and with it the
+#   provider's console, without a working shell. root keeps its shell.
+description = "Add xrdp to ssl-cert, and make fish dev's login shell"
+run = [
+  "id -nG xrdp | grep -qw ssl-cert || sudo usermod -aG ssl-cert xrdp",
+  '[ "$(getent passwd dev | cut -d: -f7)" = /usr/bin/fish ] || { grep -qx /usr/bin/fish /etc/shells && sudo chsh -s /usr/bin/fish dev; }',
+]
 
 # Files -----------------------------------------------------------------------
 
@@ -116,6 +148,17 @@ content = """
 fs.inotify.max_user_watches = 524288
 fs.inotify.max_user_instances = 1024
 """
+
+# mise has no section for gh extensions, so a hook adds them. They install
+# without a GitHub sign-in, which bootstrap.sh asks for after this run. Hooks
+# get the caller's PATH, without mise's tools or, under bootstrap.sh's sudo,
+# mise itself, so the hook names the mise that bootstrap.sh installs.
+[bootstrap.hooks.post-tools]
+description = "Add the gh-dash and gh-stack extensions"
+run = [
+  "[ -d ~/.local/share/gh/extensions/gh-dash ] || ~/.local/bin/mise exec -- gh extension install dlvhdr/gh-dash",
+  "[ -d ~/.local/share/gh/extensions/gh-stack ] || ~/.local/bin/mise exec -- gh extension install github/gh-stack",
+]
 
 # mise has no section that loads sysctl settings, so a hook does. It runs after
 # the files step on every bootstrap, and loading the same values changes nothing.

@@ -16,8 +16,10 @@ REPO=seven7thirty3five5/ubuntu-bootstrap
 MACHINE=kurtis-ubuntu-vps
 MISE_VERSION=v2026.11.14 # the mise release config.toml is built and tested against
 MISE=/home/dev/.local/bin/mise
-STEPS=7 # the number of steps in main
+GH_SHIM=/home/dev/.local/share/mise/shims/gh
+STEPS=9 # the number of steps in main
 STEP=0
+SKIPPED='' # sign-ins skipped this run
 
 # Output ----------------------------------------------------------------------
 
@@ -95,6 +97,40 @@ on_exit() {
 # Run a command as dev, from dev's home (dev can't read root's working directory).
 # stdin is the script itself, so anything interactive reads the terminal instead.
 as_dev() { (cd /home/dev && exec </dev/tty && sudo -u dev -H -- "$@"); }
+
+# Run one of the tools config.toml installs, as dev.
+dev_tool() { as_dev "$MISE" exec -- "$@"; }
+
+# sign_in NAME CHECK HOW COMMAND...: unless the CHECK function says dev is
+# signed in to NAME, explain HOW and run COMMAND as dev, then check again.
+# Ctrl-C skips one sign-in instead of stopping the bootstrap. Skipped sign-ins
+# are listed at the end, and the next run asks again.
+sign_in() {
+  sign_in_name=$1 sign_in_check=$2 sign_in_how=$3
+  shift 3
+  if "$sign_in_check"; then
+    already "Signed in to $sign_in_name"
+    return 0
+  fi
+  ask "$sign_in_how Ctrl-C skips it."
+  trap : INT
+  dev_tool "$@" || true
+  trap 'exit 130' INT
+  if "$sign_in_check"; then
+    ok "Signed in to $sign_in_name"
+  else
+    printf '\n' # a skipped sign-in can leave the cursor after its prompt
+    warn "Not signed in to $sign_in_name. The next run asks again."
+    SKIPPED="${SKIPPED:+$SKIPPED, }$sign_in_name"
+    return 1
+  fi
+}
+
+signed_in_github() { dev_tool gh auth status --hostname github.com >/dev/null 2>&1; }
+signed_in_claude() { dev_tool claude auth status >/dev/null 2>&1; }
+signed_in_codex() { dev_tool codex login status >/dev/null 2>&1; }
+signed_in_antigravity() { dev_tool agy models >/dev/null 2>&1; }
+signed_in_pi() { dev_tool jq -e 'length > 0' /home/dev/.pi/agent/auth.json >/dev/null 2>&1; }
 
 check() {
   step "Check this machine"
@@ -224,6 +260,48 @@ apply_config() {
   ok "Applied config.toml"
 }
 
+sign_in_github() {
+  step "GitHub"
+  # git pushes and pulls over HTTPS with gh's sign-in, so the VPS needs no SSH
+  # key for GitHub. These are the lines `gh auth setup-git` writes, but through
+  # mise's shim, which keeps working when mise updates gh. Set before the
+  # sign-in, they also keep `gh auth login` from asking about them.
+  helper="!$GH_SHIM auth git-credential"
+  if [ "$(as_dev git config --global --get-all credential.https://github.com.helper)" = "$(printf '\n%s' "$helper")" ] &&
+    [ "$(as_dev git config --global --get-all credential.https://gist.github.com.helper)" = "$(printf '\n%s' "$helper")" ]; then
+    already "git uses gh's sign-in for GitHub"
+  else
+    for host in github.com gist.github.com; do
+      as_dev git config --global --replace-all "credential.https://$host.helper" ''
+      as_dev git config --global --add "credential.https://$host.helper" "$helper"
+    done
+    ok "git uses gh's sign-in for GitHub, so no SSH key is needed"
+  fi
+
+  # No desktop keyring over SSH, so gh keeps its token in ~/.config/gh/hosts.yml.
+  # GH_PATH lets gh recognize the helper above as its own; there is no browser.
+  sign_in GitHub signed_in_github \
+    "Sign in to GitHub: press Enter, then open the link on any device and enter the code." \
+    env GH_PATH="$GH_SHIM" GH_BROWSER=true gh auth login --hostname github.com \
+    --git-protocol https --web --scopes workflow --insecure-storage || true
+}
+
+sign_in_agents() {
+  step "Coding agents"
+  sign_in "Claude Code" signed_in_claude \
+    "Sign in to Claude Code: open the URL below, sign in, and paste the code back here." \
+    claude auth login || true
+  sign_in Codex signed_in_codex \
+    "Sign in to Codex: open the link below and enter the code. Device code sign-in has to be on in ChatGPT's security settings." \
+    codex login --device-auth || true
+  sign_in Antigravity signed_in_antigravity \
+    "Sign in to Antigravity: choose Google OAuth, open the URL, paste the code back, then type /exit." \
+    agy || true
+  sign_in Pi signed_in_pi \
+    "Sign in to Pi: type /login, pick a provider and sign in, then press Ctrl-D to quit." \
+    pi || true
+}
+
 remove_root_key() {
   step "Root's SSH key"
   if [ -e /root/.ssh/authorized_keys ]; then
@@ -250,6 +328,10 @@ finish() {
    provider's web console.
 
 EOF
+  if [ -n "$SKIPPED" ]; then
+    warn "Not signed in yet: $SKIPPED. Run the same command again to sign in."
+    printf '\n'
+  fi
 }
 
 main() {
@@ -258,7 +340,7 @@ main() {
   trap 'exit 143' TERM
   START=$(date +%s)
   printf '\n%s%s%s %s· bootstrap from github.com/%s%s\n' "$BOLD" "$MACHINE" "$RESET" "$DIM" "$REPO" "$RESET"
-  printf '%sIt stops twice: to set a password for dev, and for the Tailscale sign-in.%s\n' "$DIM" "$RESET"
+  printf '%sIt stops for a password for dev, then for sign-ins: Tailscale, GitHub and the coding agents.%s\n' "$DIM" "$RESET"
 
   check
   set_hostname
@@ -266,6 +348,8 @@ main() {
   setup_tailscale
   install_mise
   apply_config
+  sign_in_github
+  sign_in_agents
   remove_root_key
   finish
 }

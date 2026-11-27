@@ -11,36 +11,52 @@ As root on the new VPS, over SSH or in the provider's web console:
 curl -fsSL https://raw.githubusercontent.com/seven7thirty3five5/ubuntu-bootstrap/main/bootstrap.sh | sh
 ```
 
-The script is plain POSIX `sh`. It numbers its seven steps as it goes, marks
+The script is plain POSIX `sh`. It numbers its nine steps as it goes, marks
 what it did with ✓ (grey when it was already done) and says which step
 stopped if something fails.
 
-It stops twice to ask you something:
+It stops to ask you for these:
 
 1. **A password for `dev`.** You use it for remote desktop and the provider's
    web console.
 2. **The Tailscale sign-in.** Open the URL it prints, or scan the QR code with
    your iPhone, and approve the machine.
+3. **The GitHub sign-in.** Press Enter, then open `github.com/login/device` on
+   any device and enter the code. git pushes over HTTPS with that sign-in, so
+   the VPS needs no SSH key for GitHub.
+4. **The coding agents' sign-ins,** one after another, each with its own
+   instructions on screen: Claude Code (a URL, then paste the code back),
+   Codex (a device code), Antigravity (Google OAuth, then paste the code back)
+   and Pi (`/login` in its own window).
 
-The rest is automatic. When it finishes, OpenSSH is off, the firewall only lets
-Tailscale in, and root's SSH key is deleted. The SSH session you ran it from
-stays open until you exit it. Running the command again changes nothing.
+Ctrl-C skips a GitHub or agent sign-in without stopping the run. The end of
+the run lists what you skipped, and running the command again asks only for
+those. When it finishes, OpenSSH is off, the firewall only lets Tailscale in,
+and root's SSH key is deleted. The SSH session you ran it from stays open
+until you exit it. Once everything is signed in, running the command again
+changes nothing.
 
 ## What you get
 
 - The hostname `kurtis-ubuntu-vps`, which is also its Tailscale name.
-- An account `dev` with passwordless sudo, a password, and mise in
-  `~/.local/bin`.
+- An account `dev` with passwordless sudo, a password, fish as its login shell,
+  and mise in `~/.local/bin`. root keeps bash.
 - Tailscale with Tailscale SSH and auto-update. OpenSSH is stopped, disabled
   and masked, and ufw blocks all incoming traffic except over `tailscale0` and
   Tailscale's UDP port 41641.
 - Remote desktop: Xfce through xrdp and xorgxrdp, Firefox from Mozilla's APT
   repository, the libraries Electron needs, and Xvfb for headless tests.
-- Node LTS and `gh` from mise. build-essential, git, unzip and vim from apt.
+- Your CLI tools from mise: atuin, bat, btop, duf, dust, eza, fd, fzf, gh
+  (with the gh-dash and gh-stack extensions), jq, lazydocker, lazygit, Node
+  LTS, ripgrep, starship, yazi, yq and zoxide, plus the
+  [fresh](https://github.com/sinelaw/fresh) editor as `EDITOR`.
+  build-essential, git and unzip come from apt.
+- The coding agents, also from mise: Claude Code (`claude`), Codex (`codex`),
+  the Antigravity CLI (`agy`) and Pi (`pi`). mise updates them with the other
+  tools, so their own auto-updaters are off.
 - fish 4 from the fish project's PPA, with your config from
   [`dotfiles/.config/fish`](dotfiles/.config/fish): Catppuccin Mocha,
-  starship, fzf, zoxide and atuin, all four from mise. `~/.config/fish` links
-  to that directory. dev's login shell stays bash; type `fish` to start it.
+  starship, fzf, atuin and zoxide. `~/.config/fish` links to that directory.
 - Dotfiles from [`dotfiles/`](dotfiles), higher file-watcher limits, Ubuntu's
   unattended security updates.
 
@@ -48,7 +64,8 @@ stays open until you exit it. Running the command again changes nothing.
 the hostname, `dev`, the Tailscale sign-in and installing mise. Then it runs
 `mise bootstrap --adopt seven7thirty3five5/ubuntu-bootstrap`, which clones this
 repository to `~/.config/mise` as dev's global mise config and applies
-[`config.toml`](config.toml). Last, it deletes root's SSH key.
+[`config.toml`](config.toml). After that come the sign-ins that need the
+installed tools: GitHub and the coding agents. Last, it deletes root's SSH key.
 
 ## Connect
 
@@ -76,12 +93,14 @@ you to confirm in the browser that it's you.
 - **Edit a dotfile:** `~/.bash_aliases` and `~/.config/fish` link into
   `dotfiles/`, so an edit there is already a change in the repository. Commit
   and push it.
-- **Upgrade apt packages and tools:** `mise bootstrap --upgrade`. mise itself
-  updates with `mise self-update`.
+- **Upgrade apt packages, tools and coding agents:** `mise bootstrap --upgrade`.
+  mise itself updates with `mise self-update`, and the gh extensions with
+  `gh extension upgrade --all`.
 - **Settings for this machine only** go in `~/.config/mise/config.local.toml`,
   which Git ignores.
-
-To push from the VPS, sign in to GitHub once with `gh auth login`.
+- **Sign in again** without the whole bootstrap: `gh auth login --web`,
+  `claude auth login`, `codex login --device-auth`, `agy` (it asks when signed
+  out) or `/login` in `pi`.
 
 ## Recovery
 
@@ -121,3 +140,8 @@ To push from the VPS, sign in to GitHub once with `gh auth login`.
   internet whatever the firewall says.
 - fish's Catppuccin Mocha theme colors the text only. For the background, set
   your terminal app's own Catppuccin Mocha color scheme.
+- Codex's device code sign-in is off until you turn it on in ChatGPT's
+  security settings.
+- The Antigravity CLI keeps its Google sign-in in a desktop keyring. If it
+  doesn't stay signed in over SSH, its docs offer a Gemini API key or a Google
+  Cloud project instead.
