@@ -14,6 +14,11 @@ dotfiles.root = "{{ mise_config_dir }}/dotfiles"
 [tools]
 node = "lts"
 gh = "latest"
+# The shell tools that the fish config (dotfiles/.config/fish) sets up.
+starship = "latest"
+fzf = "latest" # `fzf --fish` needs 0.48 or newer
+zoxide = "latest"
+atuin = "latest"
 
 # Packages --------------------------------------------------------------------
 
@@ -26,12 +31,20 @@ components = "main"
 key = "https://packages.mozilla.org/apt/repo-signing-key.gpg"
 fingerprint = "35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3"
 
+# Ubuntu 26.04's own fish is 4.2. The fish config uses the Catppuccin themes
+# that first shipped in fish 4.4, so fish comes from the fish project's PPA.
+[bootstrap.apt.sources.fish]
+ppa = "fish-shell/release-4"
+fingerprint = "88421E703EDC7AF54967DED473C9FCC9E2BB48DA"
+
 [bootstrap.packages]
 "apt:build-essential" = "latest"
 "apt:git" = "latest"
 "apt:unzip" = "latest"
 "apt:unattended-upgrades" = "latest" # Ubuntu's default security updates
 "apt:ufw" = "latest"                 # the firewall backend below
+"apt:fish" = "latest"                # from the fish PPA above
+"apt:vim" = "latest"                 # EDITOR in the fish config
 # Remote desktop. Xfce, because GNOME 50 has no Xorg session and xrdp needs one.
 "apt:xfce4" = "latest"
 "apt:xfce4-terminal" = "latest"
@@ -168,7 +181,8 @@ protocol = "udp"
 
 [bootstrap.mise_shell_activate]
 # The bashrc key, not `bash = true`: that also writes ~/.bash_profile, and then
-# Ubuntu's login shells stop reading ~/.profile.
+# Ubuntu's login shells stop reading ~/.profile. No fish key: the fish config
+# activates mise itself, and nothing may add lines to config.fish.
 bashrc = true
 
 [dotfiles]
@@ -178,3 +192,7 @@ bashrc = true
 "~/.bashrc/local-bin" = { line = 'export PATH="$HOME/.local/bin:$PATH"', position = "prepend" }
 # Sources live in dotfiles/ (see dotfiles.root). Add more with `mise dot add`.
 "~/.bash_aliases" = {}
+# One link for the whole directory, so anything fish or a tool writes there
+# shows up in `git status`. Its .gitignore keeps fish's machine-local
+# fish_variables out of Git.
+"~/.config/fish" = {}

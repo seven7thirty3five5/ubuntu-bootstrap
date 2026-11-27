@@ -8,8 +8,12 @@ machine reached over Tailscale.
 As root on the new VPS, over SSH or in the provider's web console:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/seven7thirty3five5/ubuntu-bootstrap/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/seven7thirty3five5/ubuntu-bootstrap/main/bootstrap.sh | sh
 ```
+
+The script is plain POSIX `sh`. It numbers its seven steps as it goes, marks
+what it did with ✓ (grey when it was already done) and says which step
+stopped if something fails.
 
 It stops twice to ask you something:
 
@@ -32,7 +36,11 @@ stays open until you exit it. Running the command again changes nothing.
   Tailscale's UDP port 41641.
 - Remote desktop: Xfce through xrdp and xorgxrdp, Firefox from Mozilla's APT
   repository, the libraries Electron needs, and Xvfb for headless tests.
-- Node LTS and `gh` from mise. build-essential, git and unzip from apt.
+- Node LTS and `gh` from mise. build-essential, git, unzip and vim from apt.
+- fish 4 from the fish project's PPA, with your config from
+  [`dotfiles/.config/fish`](dotfiles/.config/fish): Catppuccin Mocha,
+  starship, fzf, zoxide and atuin, all four from mise. `~/.config/fish` links
+  to that directory. dev's login shell stays bash; type `fish` to start it.
 - Dotfiles from [`dotfiles/`](dotfiles), higher file-watcher limits, Ubuntu's
   unattended security updates.
 
@@ -65,6 +73,9 @@ you to confirm in the browser that it's you.
   `mise bootstrap`, then commit and push from `~/.config/mise`.
 - **Add a dotfile:** `mise dot add ~/.tmux.conf` moves the file into
   `dotfiles/`, links it back and adds it to `config.toml`. Commit and push.
+- **Edit a dotfile:** `~/.bash_aliases` and `~/.config/fish` link into
+  `dotfiles/`, so an edit there is already a change in the repository. Commit
+  and push it.
 - **Upgrade apt packages and tools:** `mise bootstrap --upgrade`. mise itself
   updates with `mise self-update`.
 - **Settings for this machine only** go in `~/.config/mise/config.local.toml`,
@@ -86,8 +97,11 @@ To push from the VPS, sign in to GitHub once with `gh auth login`.
   or as `dev` with `sudo`:
 
   ```sh
-  curl -fsSL https://raw.githubusercontent.com/seven7thirty3five5/ubuntu-bootstrap/main/bootstrap.sh | sudo bash
+  sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/seven7thirty3five5/ubuntu-bootstrap/main/bootstrap.sh)"
   ```
+
+  Not `curl … | sudo sh`: when sudo's input is a pipe, Ubuntu's sudo-rs stops
+  programs that change terminal settings, so a password prompt would hang.
 
   If a run fails partway, fix the cause and run it again. Each step checks what
   is already done.
@@ -105,3 +119,5 @@ To push from the VPS, sign in to GitHub once with `gh auth login`.
   in the admin console and rename this one.
 - Docker publishes container ports past ufw, so a published port is open to the
   internet whatever the firewall says.
+- fish's Catppuccin Mocha theme colors the text only. For the background, set
+  your terminal app's own Catppuccin Mocha color scheme.
