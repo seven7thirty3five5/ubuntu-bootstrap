@@ -1,0 +1,180 @@
+# kurtis-ubuntu-vps: an Ubuntu 26.04 dev machine reached over Tailscale.
+#
+# This repository is dev's global mise config (~/.config/mise). bootstrap.sh
+# adopts it and runs `mise bootstrap`, which applies everything below in mise's
+# run order: files marked pre-packages, apt sources and packages, the other
+# files, services, the firewall, dotfiles, shell activation, then tools.
+# After changing this file, apply it with `mise bootstrap`.
+# Docs: https://mise.jdx.dev/bootstrap.html
+
+[settings]
+# Dotfile sources live in this repository, so `mise dot add` saves into it.
+dotfiles.root = "{{ mise_config_dir }}/dotfiles"
+
+[tools]
+node = "lts"
+gh = "latest"
+
+# Packages --------------------------------------------------------------------
+
+# Ubuntu's own firefox package only installs the snap. Mozilla's repository has
+# a real deb: https://support.mozilla.org/kb/install-firefox-linux
+[bootstrap.apt.sources.mozilla]
+uris = "https://packages.mozilla.org/apt"
+suites = "mozilla"
+components = "main"
+key = "https://packages.mozilla.org/apt/repo-signing-key.gpg"
+fingerprint = "35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3"
+
+[bootstrap.packages]
+"apt:build-essential" = "latest"
+"apt:git" = "latest"
+"apt:unzip" = "latest"
+"apt:unattended-upgrades" = "latest" # Ubuntu's default security updates
+"apt:ufw" = "latest"                 # the firewall backend below
+# Remote desktop. Xfce, because GNOME 50 has no Xorg session and xrdp needs one.
+"apt:xfce4" = "latest"
+"apt:xfce4-terminal" = "latest"
+"apt:xrdp" = "latest"
+"apt:xorgxrdp" = "latest"
+"apt:firefox" = "latest" # from Mozilla, through the source and pin in this file
+# What the Electron binary links against (`ldd electron` on Electron 45), and
+# Xvfb to run Electron apps headless in tests.
+"apt:libasound2t64" = "latest"
+"apt:libatk-bridge2.0-0t64" = "latest"
+"apt:libatk1.0-0t64" = "latest"
+"apt:libatspi2.0-0t64" = "latest"
+"apt:libcairo2" = "latest"
+"apt:libcups2t64" = "latest"
+"apt:libdbus-1-3" = "latest"
+"apt:libexpat1" = "latest"
+"apt:libgbm1" = "latest"
+"apt:libglib2.0-0t64" = "latest"
+"apt:libgtk-3-0t64" = "latest"
+"apt:libnspr4" = "latest"
+"apt:libnss3" = "latest"
+"apt:libpango-1.0-0" = "latest"
+"apt:libx11-6" = "latest"
+"apt:libxcb1" = "latest"
+"apt:libxcomposite1" = "latest"
+"apt:libxdamage1" = "latest"
+"apt:libxext6" = "latest"
+"apt:libxfixes3" = "latest"
+"apt:libxkbcommon0" = "latest"
+"apt:libxrandr2" = "latest"
+"apt:xvfb" = "latest"
+
+[bootstrap.hooks.post-packages]
+# The xrdp package doesn't add its user to ssl-cert, the group that can read the
+# key behind /etc/xrdp/key.pem. [bootstrap.users] can't do it: mise applies
+# accounts before packages, when the xrdp user doesn't exist yet.
+description = "Add the xrdp user to the ssl-cert group"
+run = "id -nG xrdp | grep -qw ssl-cert || sudo usermod -aG ssl-cert xrdp"
+
+# Files -----------------------------------------------------------------------
+
+# APT pins go in before packages are installed.
+[bootstrap.files."/etc/apt/preferences.d/mozilla"]
+phase = "pre-packages"
+content = """
+# Prefer Mozilla's packages; without this, Ubuntu's snap-only firefox wins.
+Package: *
+Pin: origin packages.mozilla.org
+Pin-Priority: 1000
+
+# Never fall back to Ubuntu's snap-only firefox.
+Package: firefox
+Pin: release o=Ubuntu
+Pin-Priority: -1
+"""
+
+[bootstrap.files."/etc/apt/preferences.d/no-display-manager"]
+phase = "pre-packages"
+content = """
+# xfce4 recommends LightDM, but xrdp starts its own sessions.
+Package: lightdm gdm3 sddm
+Pin: release *
+Pin-Priority: -1
+"""
+
+[bootstrap.files."/etc/sysctl.d/90-inotify.conf"]
+content = """
+# Room for file watchers: editors, dev servers, test runners.
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 1024
+"""
+
+# mise has no section that loads sysctl settings, so a hook does. It runs after
+# the files step on every bootstrap, and loading the same values changes nothing.
+[bootstrap.hooks.final]
+description = "Load the inotify limits"
+run = "sudo sysctl --quiet --load=/etc/sysctl.d/90-inotify.conf"
+
+# xrdp runs ~/.xsession for each remote desktop session. The owner is spelled
+# out because mise can write this file in the same sudo batch as the /etc files.
+[bootstrap.files."~/.xsession"]
+content = "xfce4-session\n"
+owner = "dev"
+group = "dev"
+
+# Services --------------------------------------------------------------------
+
+[bootstrap.services.tailscaled]
+state = "running"
+
+[bootstrap.services.xrdp]
+state = "running"
+
+# Tailscale SSH replaces OpenSSH. bootstrap.sh signs in to Tailscale before it
+# runs mise, so OpenSSH only goes once Tailscale SSH is up. The SSH session that
+# runs the bootstrap survives: ssh.service uses KillMode=process.
+[bootstrap.services."ssh.socket"]
+state = "stopped"
+enabled = false
+masked = true
+
+[bootstrap.services."ssh.service"]
+state = "stopped"
+enabled = false
+masked = true
+
+# Firewall --------------------------------------------------------------------
+
+# Incoming traffic only over the tailnet, plus Tailscale's own UDP port for
+# direct connections. Established connections, such as the SSH session running
+# the bootstrap, keep working.
+[bootstrap.linux.firewall]
+backend = "ufw"
+default_incoming = "deny"
+default_outgoing = "allow"
+# These rules are the whole policy: drop any ufw rules the provider's image had.
+exclusive = true
+# The first bootstrap runs over root SSH on the public IP, and these rules shut
+# that port. mise refuses such a change unless allow_lockout is set, which its
+# docs reserve for hosts with another way in. This one has the provider's web
+# console, where dev can log in with a password.
+allow_lockout = true
+
+[[bootstrap.linux.firewall.rules]]
+name = "tailnet"
+interface = "tailscale0"
+
+[[bootstrap.linux.firewall.rules]]
+name = "tailscale-udp"
+port = 41641
+protocol = "udp"
+
+# Shell -----------------------------------------------------------------------
+
+[bootstrap.mise_shell_activate]
+# The bashrc key, not `bash = true`: that also writes ~/.bash_profile, and then
+# Ubuntu's login shells stop reading ~/.profile.
+bashrc = true
+
+[dotfiles]
+# The activation block in ~/.bashrc calls `mise` by name, but Ubuntu's
+# ~/.profile sources ~/.bashrc before it adds ~/.local/bin to PATH. The mise
+# docs' fix: put ~/.local/bin on PATH at the top of ~/.bashrc.
+"~/.bashrc/local-bin" = { line = 'export PATH="$HOME/.local/bin:$PATH"', position = "prepend" }
+# Sources live in dotfiles/ (see dotfiles.root). Add more with `mise dot add`.
+"~/.bash_aliases" = {}
