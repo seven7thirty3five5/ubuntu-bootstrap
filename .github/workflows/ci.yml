@@ -1,0 +1,16 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: ShellCheck
+        run: shellcheck bootstrap.sh
+      - name: Validate config.toml against the latest mise schema
+        run: pipx run check-jsonschema --schemafile https://mise.jdx.dev/schema/mise.json config.toml
