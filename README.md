@@ -104,9 +104,8 @@ For the desktop, point an RDP client, such as Microsoft's Windows App, at
   `mise bootstrap`, then commit and push from `~/.config/mise`.
 - **Add a dotfile:** `mise dot add ~/.tmux.conf` moves the file into
   `dotfiles/`, links it back and adds it to `config.toml`. Commit and push.
-- **Edit a dotfile:** `~/.bash_aliases` and `~/.config/fish` link into
-  `dotfiles/`, so an edit there is already a change in the repository. Commit
-  and push it.
+- **Edit a dotfile:** `~/.config/fish` links into `dotfiles/`, so an edit
+  there is already a change in the repository. Commit and push it.
 - **Upgrade apt packages, tools and coding agents:** `mise bootstrap --upgrade`.
   mise itself updates with `mise self-update`, and the gh extensions with
   `gh extension upgrade --all`.

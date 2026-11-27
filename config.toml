@@ -3,7 +3,7 @@
 # This repository is dev's global mise config (~/.config/mise). bootstrap.sh
 # adopts it and runs `mise bootstrap`, which applies everything below in mise's
 # run order: files marked pre-packages, apt sources and packages, the other
-# files, services, the firewall, dotfiles, shell activation, then tools.
+# files, services, the firewall, dotfiles, then tools.
 # After changing this file, apply it with `mise bootstrap`.
 # Docs: https://mise.jdx.dev/bootstrap.html
 
@@ -220,21 +220,13 @@ name = "tailscale-udp"
 port = 41641
 protocol = "udp"
 
-# Shell -----------------------------------------------------------------------
+# Dotfiles --------------------------------------------------------------------
 
-[bootstrap.mise_shell_activate]
-# The bashrc key, not `bash = true`: that also writes ~/.bash_profile, and then
-# Ubuntu's login shells stop reading ~/.profile. No fish key: the fish config
-# activates mise itself, and nothing may add lines to config.fish.
-bashrc = true
-
+# dev uses fish only, so there is no bash config here, and no
+# [bootstrap.mise_shell_activate]: the fish config activates mise itself, and
+# nothing may add lines to config.fish.
 [dotfiles]
-# The activation block in ~/.bashrc calls `mise` by name, but Ubuntu's
-# ~/.profile sources ~/.bashrc before it adds ~/.local/bin to PATH. The mise
-# docs' fix: put ~/.local/bin on PATH at the top of ~/.bashrc.
-"~/.bashrc/local-bin" = { line = 'export PATH="$HOME/.local/bin:$PATH"', position = "prepend" }
 # Sources live in dotfiles/ (see dotfiles.root). Add more with `mise dot add`.
-"~/.bash_aliases" = {}
 # One link for the whole directory, so anything fish or a tool writes there
 # shows up in `git status`. Its .gitignore keeps fish's machine-local
 # fish_variables out of Git.
