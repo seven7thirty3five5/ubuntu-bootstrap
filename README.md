@@ -3,6 +3,21 @@
 One command turns a fresh Ubuntu 26.04 VPS into `kurtis-ubuntu-vps`, a dev
 machine reached over Tailscale.
 
+## First, once: the tailnet policy
+
+The VPS is the hub of your tailnet. It joins as `tag:hub`, and
+[`tailnet/policy.hujson`](tailnet/policy.hujson) sets up hub and spoke: your
+devices can reach the hub on every port and Tailscale SSH in as `dev`, the hub
+can't reach your devices, and your devices can't reach each other.
+
+Before the first run, open the **Access controls** page of the Tailscale admin
+console and replace the policy there with the contents of
+`tailnet/policy.hujson`. You do this once: it is tailnet setup, not VPS setup,
+and only an admin can change the policy, so nothing on the VPS can do it.
+Until the policy is in place, Tailscale refuses `tag:hub`, and the bootstrap
+stops at its Tailscale step and tells you to paste it, before it changes
+OpenSSH.
+
 ## Run it
 
 As root on the new VPS, over SSH or in the provider's web console:
@@ -20,7 +35,7 @@ It stops to ask you for these:
 1. **A password for `dev`.** You use it for remote desktop and the provider's
    web console.
 2. **The Tailscale sign-in.** Open the URL it prints, or scan the QR code with
-   your iPhone, and approve the machine.
+   your iPhone, and approve the machine. It joins as `tag:hub`.
 3. **The GitHub sign-in.** Press Enter, then open `github.com/login/device` on
    any device and enter the code. git pushes over HTTPS with that sign-in, so
    the VPS needs no SSH key for GitHub.
@@ -41,9 +56,11 @@ changes nothing.
 - The hostname `kurtis-ubuntu-vps`, which is also its Tailscale name.
 - An account `dev` with passwordless sudo, a password, fish as its login shell,
   and mise in `~/.local/bin`. root keeps bash.
-- Tailscale with Tailscale SSH and auto-update. OpenSSH is stopped, disabled
-  and masked, and ufw blocks all incoming traffic except over `tailscale0` and
-  Tailscale's UDP port 41641.
+- Tailscale as `tag:hub`, with Tailscale SSH and auto-update. Being tagged, its
+  key doesn't expire, and the policy's SSH rule is `accept`, so SSH never stops
+  to ask for a browser re-approval. OpenSSH is stopped, disabled and masked,
+  and ufw blocks all incoming traffic except over `tailscale0` and Tailscale's
+  UDP port 41641.
 - Remote desktop: Xfce through xrdp and xorgxrdp, Firefox from Mozilla's APT
   repository, the libraries Electron needs, and Xvfb for headless tests.
 - Your CLI tools from mise: atuin, bat, btop, duf, dust, eza, fd, fzf, gh
@@ -78,9 +95,6 @@ ssh dev@kurtis-ubuntu-vps
 For the desktop, point an RDP client, such as Microsoft's Windows App, at
 `kurtis-ubuntu-vps` and log in as `dev` with your password.
 
-Under Tailscale's default policy, SSH runs in check mode: now and then it asks
-you to confirm in the browser that it's you.
-
 ## Day to day
 
 `~/.config/mise` is a Git checkout of this repository.
@@ -109,7 +123,7 @@ you to confirm in the browser that it's you.
   this signs the machine in again:
 
   ```sh
-  sudo tailscale up --ssh --hostname=kurtis-ubuntu-vps --force-reauth
+  sudo tailscale up --ssh --hostname=kurtis-ubuntu-vps --advertise-tags=tag:hub --force-reauth
   ```
 
 - **Run the bootstrap again:** as root in the console with the command above,
@@ -127,12 +141,6 @@ you to confirm in the browser that it's you.
 
 ## Notes
 
-- Tailscale's sign-in for this machine expires after 180 days. To keep it
-  signed in, disable key expiry for it on the Machines page of the Tailscale
-  admin console. Otherwise, sign it in again from the provider's console with
-  the command under Recovery.
-- Keep the machine untagged. The default tailnet policy lets you SSH to your
-  own devices, and a tagged machine no longer counts as yours.
 - If an older machine in your tailnet already has the name, Tailscale calls
   this one `kurtis-ubuntu-vps-1`. The script warns you. Remove the old machine
   in the admin console and rename this one.

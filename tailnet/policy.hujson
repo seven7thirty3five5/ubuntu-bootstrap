@@ -1,0 +1,36 @@
+// Tailnet policy: hub and spoke around kurtis-ubuntu-vps, which joins the
+// tailnet as tag:hub. Paste this into the Access controls page of the
+// Tailscale admin console once, before the first bootstrap run: bootstrap.sh
+// signs in with --advertise-tags=tag:hub, and Tailscale refuses the tag until
+// this policy defines it.
+//
+// It replaces Tailscale's default policy. Your devices can reach the hub on
+// every port and SSH in as dev. The hub can't reach your devices, and your
+// devices can't reach each other.
+{
+	// Only tailnet admins may give a machine the hub tag.
+	"tagOwners": {
+		"tag:hub": ["autogroup:admin"],
+	},
+
+	// The only grant: your devices to the hub, every port. With no other
+	// grants, nothing else in the tailnet can connect to anything.
+	"grants": [
+		{
+			"src": ["autogroup:member"],
+			"dst": ["tag:hub"],
+			"ip":  ["*"],
+		},
+	],
+
+	// Tailscale SSH into the hub as dev. accept, not check: no browser
+	// re-approval now and then.
+	"ssh": [
+		{
+			"action": "accept",
+			"src":    ["autogroup:member"],
+			"dst":    ["tag:hub"],
+			"users":  ["dev"],
+		},
+	],
+}
